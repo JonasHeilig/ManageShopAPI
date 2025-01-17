@@ -1,10 +1,10 @@
 from flask import Flask, request, jsonify
 import stripe
+import key
 
 game_name = 'Name of your Game'
 api_version = '0.0.1'
-## Set your Secret API Key
-stripe.api_key = 'api_key'
+stripe.api_key = key.privat_stripe_api_key
 
 app = Flask(__name__)
 
