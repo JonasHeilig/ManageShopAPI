@@ -4,8 +4,8 @@ import requests
 BASE_URL = "http://127.0.0.1:5000"
 
 # Beispielbenutzerdaten
-USERNAME = "test_user_e457b2"
-PASSWORD = "securepassword123"
+USERNAME = "test_user_93f2b9"  # Ersetze dies mit deinem Benutzernamen
+PASSWORD = "securepassword123"  # Ersetze dies mit deinem Passwort
 SECRET = None
 USER_ID = None
 
@@ -29,29 +29,27 @@ def login():
     return response.status_code
 
 
-def change_data():
-    print("Teste Datenänderung...")
+def get_user_data():
+    print("Teste Abrufen der Benutzerdaten...")
 
     if not SECRET or not USER_ID:
         print("Fehler: Kein SECRET oder USER_ID verfügbar (Bitte zuerst einloggen).")
         return
 
-    response = requests.put(f"{BASE_URL}/data", json={
+    response = requests.get(f"{BASE_URL}/data", params={
         "user_id": USER_ID,
-        "secret": SECRET,
-        "data": {
-            "level": 65
-        }
+        "secret": SECRET
     })
 
     if response.status_code == 200:
-        print(f"Datenänderung erfolgreich: {response.json()}")
+        print("Benutzerdaten erfolgreich abgerufen:")
+        print(response.json())
     else:
-        print(f"Datenänderung fehlgeschlagen! Fehler: {response.json()}")
+        print(f"Abrufen der Benutzerdaten fehlgeschlagen! Fehler: {response.json()}")
     return response.status_code
 
 
 if __name__ == "__main__":
     # Run Test
     if login() == 200:
-        change_data()
+        get_user_data()

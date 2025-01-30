@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import stripe
 import uuid
 import key
+from logsystem import LogSystem
 
 game_name = 'Name of your Game'
 api_version = '0.0.1'
@@ -11,6 +12,7 @@ stripe.api_key = key.privat_stripe_api_key
 uuid_salt = 'your_salt_value'  # Replace 'your_salt_value' with a secure, hard-to-guess value
 
 app = Flask(__name__)
+LogSystem = LogSystem()
 
 # Configure the database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///game_shop.db'  # SQLite as the database
@@ -25,6 +27,7 @@ class User(db.Model):
     password = db.Column(db.String(200), nullable=False)  # Encrypted password
     secret = db.Column(db.String(36), unique=True, nullable=False)  # Unique secure token
     data = db.Column(db.JSON, default={})  # Flexible JSON data field
+    coins = db.Column(db.Integer, default=0)  # Coins field with default value
 
 
 # Database model for Purchase history
@@ -38,7 +41,7 @@ class PurchaseHistory(db.Model):
 # Create tables if not exist
 with app.app_context():
     db.create_all()
-    app.logger.info("Database tables created")
+    LogSystem.info("Database tables created")
 
 
 @app.route('/')
@@ -56,6 +59,8 @@ def product():
             products = stripe.Product.list()
             return jsonify({'products': products.data}), 200
         except Exception as e:
+            LogSystem.error(
+                f"Error fetching products in GET /product: {str(e)}. Associated user: {request.args.get('user_id', 'Unknown')}")
             return jsonify({'error': str(e)}), 500
 
     elif request.method == 'POST':
@@ -77,7 +82,8 @@ def product():
                 description=data.get('description', ''),
                 metadata=data.get('metadata', {})
             )
-
+            # Create Price for the product
+            LogSystem.info(f"Product '{new_product['name']}' successfully created with ID: {new_product['id']}")
             # Create Price for the product
             stripe.Price.create(
                 unit_amount=price_data['unit_amount'],
@@ -86,9 +92,11 @@ def product():
                 recurring=price_data['recurring'],
                 tax_behavior=price_data['tax_behavior']
             )
-
+            LogSystem.info(
+                f"Price created for product '{new_product['name']}': Amount={price_data['unit_amount']}, Currency='{price_data['currency']}'")
             return jsonify(new_product), 201
         except Exception as e:
+            LogSystem.error(f"Error creating a product in POST /product: {str(e)}. Request data: {request.json}")
             return jsonify({'error': str(e)}), 500
 
 
@@ -111,12 +119,14 @@ def account():
 
             user_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, uuid_salt + str(uuid.uuid4())))  # Generate a unique user ID
             new_user = User(id=user_id, username=username, password=hashed_password, secret=secret)
-            app.logger.info(f"Created user: {username} with hashed password: {hashed_password}")
+            LogSystem.info(f"Created user: {username} with hashed password: {hashed_password}")
             db.session.add(new_user)
+            LogSystem.info(f"New user '{username}' successfully added to the database with ID: {user_id}")
             db.session.commit()
 
             return jsonify({'message': 'Account created successfully', 'user_id': user_id, 'secret': secret}), 201
         except Exception as e:
+            LogSystem.error(f"Error creating account: {str(e)}. Request data: {request.json}")
             return jsonify({'error': str(e)}), 500
 
     elif request.method == 'GET':
@@ -136,6 +146,8 @@ def account():
 
             return jsonify({'username': user.username, 'purchases': purchase_list}), 200
         except Exception as e:
+            LogSystem.error(
+                f"Error fetching purchase history: {str(e)}. User ID: {request.args.get('user_id', 'Unknown')}")
             return jsonify({'error': str(e)}), 500
 
     elif request.method == 'PUT':
@@ -161,8 +173,11 @@ def account():
                 return jsonify({'error': 'Invalid action'}), 400
 
             db.session.commit()
+            LogSystem.info(
+                f"User '{user.id}' coins successfully updated: Action='{action}', Amount={amount}, TotalCoins={user.coins}")
             return jsonify({'message': 'Coins updated successfully', 'coins': user.coins}), 200
         except Exception as e:
+            LogSystem.error(f"Error updating coins: {str(e)}. Request data: {request.json}")
             return jsonify({'error': str(e)}), 500
 
 
@@ -184,6 +199,7 @@ def login():
         return jsonify(
             {'message': 'Login successful', 'username': username, 'user_id': user.id, 'secret': user.secret}), 200
     except Exception as e:
+        LogSystem.error(f"Error during login: {str(e)}. Request data: {request.json}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -199,6 +215,7 @@ def data():
                 return jsonify({'error': 'User not found'}), 404
             return jsonify({'data': user.data}), 200
         except Exception as e:
+            LogSystem.error(f"Error fetching user data: {str(e)}. User ID: {request.args.get('user_id', 'Unknown')}")
             return jsonify({'error': str(e)}), 500
 
     elif request.method == 'PUT':
@@ -224,9 +241,11 @@ def data():
                 return jsonify({'error': 'Invalid keys in data', 'invalid_keys': invalid_keys}), 400
 
             user.data = filtered_data
-            db.session.commit()
+            user.data = filtered_data
+            LogSystem.info(f"User '{user.id}' had their Stored data updated: UpdatedKeys={list(filtered_data.keys())}")
             return jsonify({'message': 'Data updated successfully'}), 200
         except Exception as e:
+            LogSystem.error(f"Error updating user data: {str(e)}. Request data: {request.json}")
             return jsonify({'error': str(e)}), 500
 
 

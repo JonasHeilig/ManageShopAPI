@@ -3,21 +3,18 @@ import requests
 # URL of the running Flask app
 BASE_URL = "http://127.0.0.1:5000"
 
-# Data for the new product
-product_data = {
-    "name": "Test Product",
-    "description": "Test Product",
-    "price": 3.99,
-    "tax_behavior": "inclusive"
-}
 
-
-def create_product():
+def add_product():
     url = f"{BASE_URL}/product"
+    product_data = {
+        "name": "Test2",
+        "description": "Test coins for your account",
+        "price": 7.99,
+        "tax_behavior": "inclusive"
+    }
 
     try:
         response = requests.post(url, json=product_data)
-
         if response.status_code == 201:
             print("Product created successfully!")
             print("Response:", response.json())
@@ -29,4 +26,4 @@ def create_product():
 
 
 if __name__ == "__main__":
-    create_product()
+    add_product()

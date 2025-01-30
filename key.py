@@ -1,1 +1,1 @@
-privat_stripe_api_key = 'insert your private stripe api key here'
+privat_stripe_api_key = 'sk_test_51QiD3YL5Wk3NMyZtOYSJOSrV7HfkNuQvI3aI9FMVBuFC3MVyGaQcLwC291QjLneEF9aT6NFxLMfUjYHR2zNsSBEM00iRF5kZfh'

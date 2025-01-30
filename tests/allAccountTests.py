@@ -76,22 +76,40 @@ def update_user_data():
         print(f"An error occurred: {e}")
 
 
-def add_product():
-    url = f"{BASE_URL}/product"
-    product_data = {
-        "name": "Test2",
-        "description": "Test coins for your account",
-        "price": 7.99,
-        "tax_behavior": "inclusive"
+def get_account_data():
+    url = f"{BASE_URL}/account"
+    params = {
+        "user_id": USER_ID,
+        "secret": SECRET
     }
 
     try:
-        response = requests.post(url, json=product_data)
-        if response.status_code == 201:
-            print("Product created successfully!")
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            print("Account data retrieved successfully!")
+            print("Response:", response.json())
+            assert response.json().get("username") == USERNAME, "Username does not match expected value."
+        else:
+            print(f"Failed to retrieve account data. Status code: {response.status_code}")
+            print("Error:", response.json())
+    except requests.RequestException as e:
+        print(f"An error occurred: {e}")
+
+
+def get_user_data():
+    url = f"{BASE_URL}/data"
+    params = {
+        "user_id": USER_ID,
+        "secret": SECRET
+    }
+
+    try:
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            print("User data retrieved successfully!")
             print("Response:", response.json())
         else:
-            print(f"Failed to create product. Status code: {response.status_code}")
+            print(f"Failed to retrieve user data. Status code: {response.status_code}")
             print("Error:", response.json())
     except requests.RequestException as e:
         print(f"An error occurred: {e}")
@@ -100,7 +118,6 @@ def add_product():
 def main():
     print("--- Testing Account Creation ---")
     create_account()
-    # print("\n--- Account for this test already created ---")
 
     print("\n--- Testing Login ---")
     login()
@@ -108,9 +125,11 @@ def main():
     print("\n--- Testing User Data Update ---")
     update_user_data()
 
-    print("\n--- Testing Add Product ---")
-    add_product()
-    # print("\n--- It Works :) ---")
+    print("\n--- Testing Account Data Retrieval ---")
+    get_account_data()
+
+    print("\n--- Testing Get User Stored Data ---")
+    get_user_data()
 
 
 if __name__ == "__main__":
