@@ -1,17 +1,21 @@
 import requests
 import uuid
+import tests.test_users_infos as test_users_infos
 
 # URL of the running Flask app
 BASE_URL = "http://127.0.0.1:5000"
 
 # Global data for testing
 USERNAME = f"test_user_{uuid.uuid4().hex[:6]}"
-PASSWORD = "securepassword123"
+PASSWORD = test_users_infos.password
 USER_ID = None
 SECRET = None
 
 
 def create_account():
+    """
+    Creates an account using POST /account route.
+    """
     url = f"{BASE_URL}/account"
     account_data = {
         "username": USERNAME,
@@ -34,6 +38,9 @@ def create_account():
 
 
 def login():
+    """
+    Logs in using POST /login route.
+    """
     url = f"{BASE_URL}/login"
     login_data = {
         "username": USERNAME,
@@ -45,6 +52,9 @@ def login():
         if response.status_code == 200:
             print("Login successful!")
             print("Response:", response.json())
+            global USER_ID, SECRET
+            USER_ID = response.json().get("user_id")
+            SECRET = response.json().get("secret")
         else:
             print(f"Failed to login. Status code: {response.status_code}")
             print("Error:", response.json())
@@ -53,6 +63,9 @@ def login():
 
 
 def update_user_data():
+    """
+    Updates user data using PUT /data route.
+    """
     url = f"{BASE_URL}/data"
     user_data = {
         "user_id": USER_ID,
@@ -77,6 +90,9 @@ def update_user_data():
 
 
 def get_account_data():
+    """
+    Retrieves account data using GET /account route.
+    """
     url = f"{BASE_URL}/account"
     params = {
         "user_id": USER_ID,
@@ -97,6 +113,9 @@ def get_account_data():
 
 
 def get_user_data():
+    """
+    Retrieves user stored data using GET /data route.
+    """
     url = f"{BASE_URL}/data"
     params = {
         "user_id": USER_ID,
@@ -116,6 +135,9 @@ def get_user_data():
 
 
 def main():
+    """
+    Executes a sequence of tests for account and user data functionality.
+    """
     print("--- Testing Account Creation ---")
     create_account()
 

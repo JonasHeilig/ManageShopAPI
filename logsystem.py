@@ -22,8 +22,8 @@ class LogSystem:
         file_handler = logging.FileHandler(self.log_file_path)
         file_handler.setLevel(logging.DEBUG)
 
-        # Define log format
-        formatter = logging.Formatter("%(levelname)s - %(message)s")
+        # Define log format (with custom date format)
+        formatter = logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s", "%d-%m-%Y %H:%M:%S")
         file_handler.setFormatter(formatter)
 
         # Add handlers
@@ -40,12 +40,13 @@ class LogSystem:
 
     def log_info(self, message):
         """Logs an INFO level message."""
-        self.logger.info(f" {message} ")
+        self.logger.info(f"{message}")
 
     def log_warning(self, message):
         """Logs a WARNING level message."""
-        self.logger.warning(f" {message} ")
+        self.logger.warning(f"{message}")
 
     def log_error(self, message):
         """Logs an ERROR level message."""
-        self.logger.error(f" {message} ")
+        self.logger.error(f"{message}")
+

@@ -41,7 +41,7 @@ class PurchaseHistory(db.Model):
 # Create tables if not exist
 with app.app_context():
     db.create_all()
-    LogSystem.info("Database tables created")
+    LogSystem.log_info("Database tables created")
 
 
 @app.route('/')
@@ -59,7 +59,7 @@ def product():
             products = stripe.Product.list()
             return jsonify({'products': products.data}), 200
         except Exception as e:
-            LogSystem.error(
+            LogSystem.log_error(
                 f"Error fetching products in GET /product: {str(e)}. Associated user: {request.args.get('user_id', 'Unknown')}")
             return jsonify({'error': str(e)}), 500
 
@@ -83,20 +83,19 @@ def product():
                 metadata=data.get('metadata', {})
             )
             # Create Price for the product
-            LogSystem.info(f"Product '{new_product['name']}' successfully created with ID: {new_product['id']}")
-            # Create Price for the product
+            LogSystem.log_info(f"Product '{new_product['name']}' successfully created with ID: {new_product['id']}")
             stripe.Price.create(
                 unit_amount=price_data['unit_amount'],
                 currency=price_data['currency'],
                 product=new_product['id'],
-                recurring=price_data['recurring'],
+                recurring=price_data.get('recurring'),
                 tax_behavior=price_data['tax_behavior']
             )
-            LogSystem.info(
+            LogSystem.log_info(
                 f"Price created for product '{new_product['name']}': Amount={price_data['unit_amount']}, Currency='{price_data['currency']}'")
             return jsonify(new_product), 201
         except Exception as e:
-            LogSystem.error(f"Error creating a product in POST /product: {str(e)}. Request data: {request.json}")
+            LogSystem.log_error(f"Error creating a product in POST /product: {str(e)}. Request data: {request.json}")
             return jsonify({'error': str(e)}), 500
 
 
@@ -119,48 +118,77 @@ def account():
 
             user_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, uuid_salt + str(uuid.uuid4())))  # Generate a unique user ID
             new_user = User(id=user_id, username=username, password=hashed_password, secret=secret)
-            LogSystem.info(f"Created user: {username} with hashed password: {hashed_password}")
+            LogSystem.log_info(f"Created user: {username} with hashed password: {hashed_password}")
             db.session.add(new_user)
-            LogSystem.info(f"New user '{username}' successfully added to the database with ID: {user_id}")
+            LogSystem.log_info(f"New user '{username}' successfully added to the database with ID: {user_id}")
             db.session.commit()
 
             return jsonify({'message': 'Account created successfully', 'user_id': user_id, 'secret': secret}), 201
         except Exception as e:
-            LogSystem.error(f"Error creating account: {str(e)}. Request data: {request.json}")
+            LogSystem.log_error(f"Error creating account: {str(e)}. Request data: {request.json}")
             return jsonify({'error': str(e)}), 500
 
     elif request.method == 'GET':
-        # Get purchase history
+        # Get user information, requiring either a secret or password
         try:
             user_id = request.args.get('user_id')
+            secret = request.args.get('secret')
+            password = request.args.get('password')
+
+            if not user_id or (not secret and not password):
+                return jsonify({'error': 'Access denied: Missing required credentials'}), 401
+
+            # Fetch the user by ID
             user = User.query.get(user_id)
 
             if not user:
                 return jsonify({'error': 'User not found'}), 404
 
-            # Fetch user purchases
-            purchases = PurchaseHistory.query.filter_by(user_id=user_id).all()
-            purchase_list = [
-                {'product_name': p.product_name, 'purchase_date': p.purchase_date.isoformat()} for p in purchases
-            ]
+            # If the secret is provided, verify it
+            if secret and user.secret == secret:
+                return jsonify({
+                    'username': user.username,
+                    'coins': user.coins,
+                    'purchases': [
+                        {
+                            'product_name': ph.product_name,
+                            'purchase_date': ph.purchase_date.isoformat()
+                        } for ph in PurchaseHistory.query.filter_by(user_id=user_id).all()
+                    ]
+                }), 200
 
-            return jsonify({'username': user.username, 'purchases': purchase_list}), 200
+            # If the password is provided, verify it
+            if password and check_password_hash(user.password, password):
+                return jsonify({
+                    'username': user.username,
+                    'coins': user.coins,
+                    'purchases': [
+                        {
+                            'product_name': ph.product_name,
+                            'purchase_date': ph.purchase_date.isoformat()
+                        } for ph in PurchaseHistory.query.filter_by(user_id=user_id).all()
+                    ]
+                }), 200
+
+            # If neither secret nor password matches, deny access
+            return jsonify({'error': 'Access denied: Invalid credentials'}), 401
+
         except Exception as e:
-            LogSystem.error(
-                f"Error fetching purchase history: {str(e)}. User ID: {request.args.get('user_id', 'Unknown')}")
+            LogSystem.log_error(f"Error fetching account info: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
     elif request.method == 'PUT':
-        # Update coins (add or deduct)
+        # Update coins (add or deduct), requires secret
         try:
             data = request.json
             user_id = data['user_id']
+            secret = data.get('secret')
             action = data['action']  # "add" or "deduct"
             amount = data['amount']
 
             user = User.query.get(user_id)
-            if not user:
-                return jsonify({'error': 'User not found'}), 404
+            if not user or user.secret != secret:
+                return jsonify({'error': 'Unauthorized'}), 401
 
             # Perform the action (add or deduct coins)
             if action == 'add':
@@ -173,11 +201,11 @@ def account():
                 return jsonify({'error': 'Invalid action'}), 400
 
             db.session.commit()
-            LogSystem.info(
-                f"User '{user.id}' coins successfully updated: Action='{action}', Amount={amount}, TotalCoins={user.coins}")
+            LogSystem.log_info(
+                f"User '{user.id}' coins updated: Action='{action}', Amount={amount}. Total={user.coins}")
             return jsonify({'message': 'Coins updated successfully', 'coins': user.coins}), 200
         except Exception as e:
-            LogSystem.error(f"Error updating coins: {str(e)}. Request data: {request.json}")
+            LogSystem.log_error(f"Error updating coins: {str(e)}.")
             return jsonify({'error': str(e)}), 500
 
 
@@ -199,13 +227,13 @@ def login():
         return jsonify(
             {'message': 'Login successful', 'username': username, 'user_id': user.id, 'secret': user.secret}), 200
     except Exception as e:
-        LogSystem.error(f"Error during login: {str(e)}. Request data: {request.json}")
+        LogSystem.log_error(f"Error during login: {str(e)}. Request data: {request.json}")
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/data', methods=['GET', 'PUT'])
 def data():
-    ALLOWED_KEYS = {"level", "preferences", "score"}  # Allowed keys in the data field
+    ALLOWED_KEYS = {"level", "preferences", "score"}  # Erlaubte Schlüssel im Datenfeld
 
     if request.method == 'GET':
         try:
@@ -215,7 +243,8 @@ def data():
                 return jsonify({'error': 'User not found'}), 404
             return jsonify({'data': user.data}), 200
         except Exception as e:
-            LogSystem.error(f"Error fetching user data: {str(e)}. User ID: {request.args.get('user_id', 'Unknown')}")
+            LogSystem.log_error(
+                f"Error fetching user data: {str(e)}. User ID: {request.args.get('user_id', 'Unknown')}")
             return jsonify({'error': str(e)}), 500
 
     elif request.method == 'PUT':
@@ -236,16 +265,19 @@ def data():
             if len(filtered_data) != len(user_data):
                 invalid_keys = [key for key in user_data if key not in ALLOWED_KEYS]
                 return jsonify({'error': 'Invalid keys in data', 'invalid_keys': invalid_keys}), 400
-            if len(filtered_data) != len(user_data):
-                invalid_keys = [key for key in user_data if key not in ALLOWED_KEYS]
-                return jsonify({'error': 'Invalid keys in data', 'invalid_keys': invalid_keys}), 400
 
-            user.data = filtered_data
-            user.data = filtered_data
-            LogSystem.info(f"User '{user.id}' had their Stored data updated: UpdatedKeys={list(filtered_data.keys())}")
-            return jsonify({'message': 'Data updated successfully'}), 200
+            # Aktuelle Daten laden und mit gefilterten Daten mergen
+            current_data = user.data or {}  # Falls keine Daten vorhanden sind, ein leeres Dict verwenden
+            current_data.update(filtered_data)  # Nur die gegebenen Felder aktualisieren
+
+            # Speichern der aktualisierten Daten
+            user.data = current_data
+            db.session.commit()
+
+            LogSystem.log_info(f"User '{user.id}' updated data: {filtered_data}")
+            return jsonify({'message': 'Data updated successfully', 'updated_data': current_data}), 200
         except Exception as e:
-            LogSystem.error(f"Error updating user data: {str(e)}. Request data: {request.json}")
+            LogSystem.log_error(f"Error updating user data: {str(e)}. Request data: {request.json}")
             return jsonify({'error': str(e)}), 500
 
 
